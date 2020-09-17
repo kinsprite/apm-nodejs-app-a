@@ -1,7 +1,15 @@
 const axios = require('axios').default;
-const apm = require('elastic-apm-node').start();
+const apm = require('elastic-apm-node').start({
+  ignoreUrls: ['/healthz'],
+});
 
 const app = require('express')();
+
+app.get('/healthz', function (req, res) {
+  res.send({
+    msg: 'OK',
+  });
+});
 
 app.get('/',  async function (req, res) {
 

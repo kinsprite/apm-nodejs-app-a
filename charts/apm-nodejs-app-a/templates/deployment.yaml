@@ -21,5 +21,20 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.service.internalPort }}
+          initialDelaySeconds: 3
+          periodSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.service.internalPort }}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        env:
+          - name: ELASTIC_APM_SERVER_URL
+            value: "{{ .Values.apmServerUrl }}"
         resources:
 {{ toYaml .Values.resources | indent 12 }}
