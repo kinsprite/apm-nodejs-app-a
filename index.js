@@ -33,27 +33,20 @@ app.get('/healthz', function (req, res) {
   });
 });
 
-app.get('/',  async function (req, res) {
+app.get('/', async function (req, res, next) {
+  try {
+    const resAll = await Promise.all([
+      axios.get('http://apm-nodejs-app-b:8080/api/hello-a-b'),
+      axios.get('http://apm-nodejs-app-c:8080/api/hello-a-c'),
+    ]);
 
-  const resAll = await Promise.all([
-    axios.get('http://apm-nodejs-app-b:8080/api/hello-a-b'),
-    axios.get('http://apm-nodejs-app-c:8080/api/hello-a-c'),
-  ]);
-
-  res.send({
-    a: 'Hello World!',
-    b: resAll[0].data,
-    c: resAll[1].data,
-  });
-});
-
-app.use(function logErrors (err, req, res, next) {
-  console.error(err.stack);
-
-  if (req.xhr) {
-    // res.status(500).send({ error: 'Something failed!' });
-    res.status(500).render('error', { error: err });
-  } else {
+    res.send({
+      a: 'Hello World!',
+      b: resAll[0].data,
+      c: resAll[1].data,
+    });
+  }
+  catch (err) {
     next(err);
   }
 });
