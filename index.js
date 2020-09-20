@@ -5,6 +5,28 @@ const apm = require('elastic-apm-node').start({
 
 const app = require('express')();
 
+function logErrors (err, req, res, next) {
+  console.error(err.stack);
+  next(err);
+}
+
+function clientErrorHandler (err, req, res, next) {
+  if (req.xhr) {
+    res.status(500).send({ error: 'Something failed!' });
+  } else {
+    next(err);
+  }
+}
+
+function errorHandler (err, req, res, next) {
+  res.status(500);
+  res.render('error', { error: err });
+}
+
+app.use(logErrors);
+app.use(clientErrorHandler);
+app.use(errorHandler);
+
 app.get('/healthz', function (req, res) {
   res.send({
     msg: 'OK',
@@ -23,6 +45,17 @@ app.get('/',  async function (req, res) {
     b: resAll[0].data,
     c: resAll[1].data,
   });
+});
+
+app.use(function logErrors (err, req, res, next) {
+  console.error(err.stack);
+
+  if (req.xhr) {
+    // res.status(500).send({ error: 'Something failed!' });
+    res.status(500).render('error', { error: err });
+  } else {
+    next(err);
+  }
 });
 
 app.listen(8080);
