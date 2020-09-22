@@ -3,7 +3,80 @@ const apm = require('elastic-apm-node').start({
   ignoreUrls: ['/healthz'],
 });
 
+const http = require('http');
 const app = require('express')();
+const asyncHooks = require('async_hooks');
+
+const store = new Map();
+
+const asyncHook = asyncHooks.createHook({
+  init: (asyncId, _, triggerAsyncId) => {
+    if (store.has(triggerAsyncId)) {
+      store.set(asyncId, store.get(triggerAsyncId))
+    }
+  },
+  destroy: (asyncId) => {
+    if (store.has(asyncId)) {
+      store.delete(asyncId);
+    }
+  }
+});
+
+asyncHook.enable();
+
+function hasProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+axios.interceptors.request.use((config) => {
+  const asyncId = asyncHooks.executionAsyncId();
+
+  if (!store.has(asyncId)) {
+    return config;
+  }
+
+  const userCtx = store.get(asyncId);
+
+  if (!config.headers) {
+    config.headers = userCtx.reqHeaders;
+  } else {
+    Object.keys(userCtx.reqHeaders).forEach((key) => {
+      if (!hasProperty(config.headers, key)) {
+        config.headers[key] = userCtx.reqHeaders[key];
+      }
+    });
+  }
+
+  return config;
+})
+
+/**
+ *
+ * @param {http.IncomingMessage} req
+ * @param {http.ServerResponse} res
+ * @param {*} next
+ */
+function userContextHandler(req, res, next) {
+  const userCtx = {
+    userId: 1000, // TODO: query user info from session
+    userName: 'userXXX',
+    reqHeaders: {
+    },
+  };
+
+  // 'host' 用在反向代理; 'user-agent'
+  ['language', 'session-id'].forEach((key) => {
+    if (req.headers[key]) {
+      userCtx.reqHeaders[key] = req.headers[key];
+    }
+  });
+
+  userCtx.reqHeaders["user-id"] = `${userCtx.userId}`;
+  userCtx.reqHeaders["user-name"] = userCtx.userName;
+
+  store.set(asyncHooks.executionAsyncId(), userCtx);
+  next();
+}
 
 function logErrors (err, req, res, next) {
   console.error(err.stack);
@@ -23,6 +96,7 @@ function errorHandler (err, req, res, next) {
   res.render('error', { error: err });
 }
 
+app.use(userContextHandler);
 app.use(logErrors);
 app.use(clientErrorHandler);
 app.use(errorHandler);
